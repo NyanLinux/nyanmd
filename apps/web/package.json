@@ -28,7 +28,7 @@
     "@inariwrite/plugin-sample": "workspace:*",
     "i18next": "^24.2.0",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5",
+    "react-dom": "^19.2.7",
     "react-i18next": "^15.2.0"
   },
   "devDependencies": {
