@@ -27,7 +27,7 @@
     "@inariwrite/i18n": "workspace:*",
     "@inariwrite/plugin-sample": "workspace:*",
     "i18next": "^24.2.0",
-    "react": "^19.2.5",
+    "react": "^19.2.7",
     "react-dom": "^19.2.5",
     "react-i18next": "^15.2.0"
   },
@@ -38,7 +38,7 @@
     "@capacitor/ios": "^7.2.0",
     "@playwright/test": "^1.49.1",
     "@tailwindcss/vite": "^4.2.2",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
     "cross-env": "^7.0.3",
