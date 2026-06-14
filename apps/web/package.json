@@ -26,7 +26,7 @@
     "@inariwrite/core": "workspace:*",
     "@inariwrite/i18n": "workspace:*",
     "@inariwrite/plugin-sample": "workspace:*",
-    "i18next": "^24.2.0",
+    "i18next": "^26.3.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-i18next": "^15.2.0"
