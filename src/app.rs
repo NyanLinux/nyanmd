@@ -5,8 +5,9 @@ use serde::Serialize;
 use sycamore::futures::spawn_local_scoped;
 use sycamore::prelude::*;
 use sycamore::web::events::{KeyboardEvent, MouseEvent};
+use sycamore::web::js_sys;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlElement, HtmlTextAreaElement};
+use web_sys::{Element, HtmlElement, HtmlTextAreaElement};
 
 #[wasm_bindgen]
 extern "C" {
@@ -33,11 +34,49 @@ struct WriteArg<'a> {
     content: &'a str,
 }
 
+const NOTE_SCHEME: &str = "nyan:";
+
+/// `[[note]]` / `[[note|alias]]` -> `[alias](nyan:note)` so the markdown parser does the rest.
+fn expand_wikilinks(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let mut rest = src;
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        match after.find("]]") {
+            Some(end) if !after[..end].contains('\n') && !after[..end].is_empty() => {
+                let inner = &after[..end];
+                let (target, label) = inner.split_once('|').unwrap_or((inner, inner));
+                out.push_str(&rest[..start]);
+                out.push_str(&format!("[{}]({NOTE_SCHEME}{})", label.trim(), target.trim()));
+                rest = &after[end + 2..];
+            }
+            _ => {
+                out.push_str(&rest[..start + 2]);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 fn md_to_html(src: &str) -> String {
     let opts = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
     let mut out = String::new();
-    html::push_html(&mut out, Parser::new_ext(src, opts));
+    html::push_html(&mut out, Parser::new_ext(&expand_wikilinks(src), opts));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wikilinks() {
+        assert_eq!(expand_wikilinks("see [[todo]] and [[a/b|B]]"), "see [todo](nyan:todo) and [B](nyan:a/b)");
+        assert_eq!(expand_wikilinks("[[open\nline]] [[]] [[x"), "[[open\nline]] [[]] [[x");
+        assert!(md_to_html("[[ жагсаалт ]]").contains(r#"href="nyan:%D0%B6"#));
+    }
 }
 
 #[component]
@@ -188,6 +227,23 @@ pub fn App() -> View {
 
     let on_input = move |_| content.set(textarea().value());
 
+    // Clicking a [[wikilink]] in the preview opens that note.
+    let on_preview_click = move |e: MouseEvent| {
+        let Some(a) = e
+            .target()
+            .and_then(|t| t.dyn_into::<Element>().ok())
+            .and_then(|el| el.closest("a").ok().flatten())
+        else {
+            return;
+        };
+        let Some(name) = a.get_attribute("href").and_then(|h| h.strip_prefix(NOTE_SCHEME).map(str::to_string)) else {
+            return;
+        };
+        e.prevent_default();
+        let name = js_sys::decode_uri_component(&name).map(|s| String::from(s)).unwrap_or(name);
+        open(name);
+    };
+
     let on_cmd_key = move |e: KeyboardEvent| {
         let k = e.key();
         if k != "Enter" && k != "Escape" {
@@ -231,7 +287,7 @@ pub fn App() -> View {
             textarea(r#ref=ta_ref, class="editor",
                 on:keydown=on_key, on:input=on_input, on:mouseup=on_mouseup,
                 placeholder=":e name  to open a note")
-            section(r#ref=preview_ref, class="preview")
+            section(r#ref=preview_ref, class="preview", on:click=on_preview_click)
         }
         footer(class="statusline") {
             span(class="mode") { (mode_label) }

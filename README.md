@@ -15,6 +15,8 @@ Notes live in `~/nyanmd/**/*.md`. Left: file list. Middle: editor. Right: live p
 | `:e name` | open or create `name.md` |
 | `:w` `:q` `:wq` | save / close / both |
 
+`[[note]]` or `[[note|alias]]` in a note renders as a link; clicking it in the preview opens (or creates) `note.md`.
+
 ## Run
 
 ```sh
