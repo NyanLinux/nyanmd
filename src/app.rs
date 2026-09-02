@@ -60,6 +60,19 @@ fn expand_wikilinks(src: &str) -> String {
     out
 }
 
+/// If the caret sits inside an unclosed `[[` on the current line, return
+/// (utf16 index right after `[[`, text typed so far). `caret` is a utf16 index.
+fn wikilink_query(text: &str, caret: usize) -> Option<(usize, String)> {
+    let pre: Vec<u16> = text.encode_utf16().take(caret).collect();
+    let s = String::from_utf16_lossy(&pre);
+    let p = s.rfind("[[")?;
+    let q = &s[p + 2..];
+    if q.contains("]]") || q.contains('\n') {
+        return None;
+    }
+    Some((s[..p + 2].encode_utf16().count(), q.to_string()))
+}
+
 fn md_to_html(src: &str) -> String {
     let opts = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
     let mut out = String::new();
@@ -77,12 +90,23 @@ mod tests {
         assert_eq!(expand_wikilinks("[[open\nline]] [[]] [[x"), "[[open\nline]] [[]] [[x");
         assert!(md_to_html("[[ жагсаалт ]]").contains(r#"href="nyan:%D0%B6"#));
     }
+
+    #[test]
+    fn wikilink_query_at_caret() {
+        assert_eq!(wikilink_query("see [[to", 8), Some((6, "to".into())));
+        assert_eq!(wikilink_query("сайн [[тө", 9), Some((7, "тө".into())));
+        assert_eq!(wikilink_query("[[done]] x", 10), None);
+        assert_eq!(wikilink_query("[[a\nb", 5), None);
+        assert_eq!(wikilink_query("plain", 5), None);
+    }
 }
 
 #[component]
 pub fn App() -> View {
     let notes = create_signal(Vec::<String>::new());
     let backlinks = create_signal(Vec::<String>::new());
+    let ac = create_signal(Vec::<String>::new());
+    let ac_sel = create_signal(0usize);
     let path = create_signal(String::new());
     let content = create_signal(String::new());
     let mode = create_signal(Mode::Normal);
@@ -195,11 +219,66 @@ pub fn App() -> View {
         focus_ta();
     });
 
+    let caret = move || textarea().selection_start().ok().flatten().unwrap_or(0) as usize;
+
+    // Refresh the [[ popup from the text before the caret.
+    let update_ac = move || {
+        let items = match wikilink_query(&textarea().value(), caret()) {
+            Some((_, q)) => {
+                let q = q.to_lowercase();
+                notes.with(|ns| {
+                    ns.iter()
+                        .map(|n| n.strip_suffix(".md").unwrap_or(n))
+                        .filter(|n| n.to_lowercase().contains(&q))
+                        .take(8)
+                        .map(String::from)
+                        .collect()
+                })
+            }
+            None => Vec::new(),
+        };
+        ac_sel.set(0);
+        ac.set(items);
+    };
+
+    // Replace `[[typed` with `[[name]]` and put the caret after it.
+    let accept_ac = move |name: String| {
+        let t = textarea();
+        let text = t.value();
+        let c = caret();
+        let Some((start, _)) = wikilink_query(&text, c) else { return };
+        let u: Vec<u16> = text.encode_utf16().collect();
+        let mut new = u[..start].to_vec();
+        new.extend(format!("{name}]]").encode_utf16());
+        let pos = new.len() as u32;
+        new.extend_from_slice(&u[c.min(u.len())..]);
+        let s = String::from_utf16_lossy(&new);
+        t.set_value(&s);
+        t.set_selection_range(pos, pos).ok();
+        content.set(s);
+        ac.set(Vec::new());
+    };
+
     let on_key = move |e: KeyboardEvent| {
-        if e.meta_key() || e.ctrl_key() || e.alt_key() {
+        let k = e.key();
+        let ctrl = e.ctrl_key();
+        if mode.get() == Mode::Insert && ac.with(|v| !v.is_empty()) {
+            let n = ac.with(Vec::len);
+            let handled = match k.as_str() {
+                "ArrowDown" | "Tab" => ac_sel.set((ac_sel.get() + 1) % n),
+                "ArrowUp" => ac_sel.set((ac_sel.get() + n - 1) % n),
+                "n" if ctrl => ac_sel.set((ac_sel.get() + 1) % n),
+                "p" if ctrl => ac_sel.set((ac_sel.get() + n - 1) % n),
+                "Enter" => accept_ac(ac.with(|v| v[ac_sel.get()].clone())),
+                "Escape" => ac.set(Vec::new()),
+                _ => return,
+            };
+            e.prevent_default();
+            return handled;
+        }
+        if e.meta_key() || ctrl || e.alt_key() {
             return;
         }
-        let k = e.key();
         match mode.get() {
             Mode::Insert => {
                 if k == "Escape" {
@@ -237,7 +316,10 @@ pub fn App() -> View {
         }
     };
 
-    let on_input = move |_| content.set(textarea().value());
+    let on_input = move |_| {
+        content.set(textarea().value());
+        update_ac();
+    };
 
     // Clicking a [[wikilink]] in the preview opens that note.
     let on_preview_click = move |e: MouseEvent| {
@@ -296,9 +378,23 @@ pub fn App() -> View {
                     })
                 }
             }
-            textarea(r#ref=ta_ref, class="editor",
-                on:keydown=on_key, on:input=on_input, on:mouseup=on_mouseup,
-                placeholder=":e name  to open a note")
+            div(class="editor-wrap") {
+                textarea(r#ref=ta_ref, class="editor",
+                    on:keydown=on_key, on:input=on_input, on:mouseup=on_mouseup,
+                    placeholder=":e name  to open a note")
+                ul(class=move || if ac.with(Vec::is_empty) { "ac hidden" } else { "ac" }) {
+                    (move || {
+                        let sel = ac_sel.get();
+                        let items: Vec<View> = ac.with(|v| v.iter().enumerate().map(|(i, n)| {
+                            let n2 = n.clone();
+                            let label = n.clone();
+                            let cls = if i == sel { "sel" } else { "" };
+                            view! { li(class=cls, on:mousedown=move |e: MouseEvent| { e.prevent_default(); accept_ac(n2.clone()); }) { (label) } }
+                        }).collect());
+                        View::from(items)
+                    })
+                }
+            }
             div(class="right") {
                 section(r#ref=preview_ref, class="preview", on:click=on_preview_click)
                 div(class="backlinks") {

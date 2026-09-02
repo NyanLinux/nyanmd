@@ -31,12 +31,31 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 .sidebar li:hover { background: var(--bg3); }
 .sidebar li.active { color: var(--accent); background: var(--bg3); }
 
+.editor-wrap { position: relative; display: flex; min-height: 0; border-right: 1px solid var(--bg3); }
+.ac {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  min-width: 220px;
+  max-width: 80%;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.ac li { padding: 3px 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac li.sel { background: var(--bg3); color: var(--accent); }
+.ac.hidden { display: none; }
+
 .editor {
+  flex: 1;
   font: inherit;
   color: inherit;
   background: var(--bg);
   border: none;
-  border-right: 1px solid var(--bg3);
   outline: none;
   resize: none;
   padding: 16px;
