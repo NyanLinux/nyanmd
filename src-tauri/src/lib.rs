@@ -60,6 +60,26 @@ fn read_note(app: AppHandle, path: String) -> Result<String, String> {
     }
 }
 
+/// Does `text` contain `[[note]]` or `[[note|alias]]` pointing at `note_path`?
+fn links_to(text: &str, note_path: &str) -> bool {
+    let target = note_path.strip_suffix(".md").unwrap_or(note_path);
+    text.contains(&format!("[[{target}]]")) || text.contains(&format!("[[{target}|"))
+}
+
+/// Notes that link to the given note.
+/// ponytail: reads every note on each open; index them if the vault gets big.
+#[tauri::command]
+fn backlinks(app: AppHandle, path: String) -> Result<Vec<String>, String> {
+    let root = vault(&app)?;
+    let mut out = Vec::new();
+    for note in list_notes(app.clone())? {
+        if note != path && links_to(&fs::read_to_string(root.join(&note)).map_err(err)?, &path) {
+            out.push(note);
+        }
+    }
+    Ok(out)
+}
+
 #[tauri::command]
 fn write_note(app: AppHandle, path: String, content: String) -> Result<(), String> {
     let p = resolve(&app, &path)?;
@@ -69,11 +89,21 @@ fn write_note(app: AppHandle, path: String, content: String) -> Result<(), Strin
     fs::write(p, content).map_err(err)
 }
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn links_to() {
+        assert!(super::links_to("see [[todo]]", "todo.md"));
+        assert!(super::links_to("see [[a/b|B]]", "a/b.md"));
+        assert!(!super::links_to("see [[todos]]", "todo.md"));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![list_notes, read_note, write_note])
+        .invoke_handler(tauri::generate_handler![list_notes, read_note, write_note, backlinks])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

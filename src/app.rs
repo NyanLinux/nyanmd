@@ -82,6 +82,7 @@ mod tests {
 #[component]
 pub fn App() -> View {
     let notes = create_signal(Vec::<String>::new());
+    let backlinks = create_signal(Vec::<String>::new());
     let path = create_signal(String::new());
     let content = create_signal(String::new());
     let mode = create_signal(Mode::Normal);
@@ -133,6 +134,15 @@ pub fn App() -> View {
                 Ok(v) => notes.set(v),
                 Err(e) => status.set(e),
             }
+            let p = path.get_clone();
+            if p.is_empty() {
+                backlinks.set(Vec::new());
+                return;
+            }
+            match call::<Vec<String>>("backlinks", PathArg { path: &p }).await {
+                Ok(v) => backlinks.set(v),
+                Err(e) => status.set(e),
+            }
         })
     };
 
@@ -146,6 +156,7 @@ pub fn App() -> View {
                     path.set(p);
                     render();
                     focus_ta();
+                    refresh();
                 }
                 Err(e) => status.set(e),
             }
@@ -174,6 +185,7 @@ pub fn App() -> View {
     let close = move || {
         ed.update(|e| e.load(""));
         path.set(String::new());
+        backlinks.set(Vec::new());
         render();
     };
 
@@ -287,7 +299,20 @@ pub fn App() -> View {
             textarea(r#ref=ta_ref, class="editor",
                 on:keydown=on_key, on:input=on_input, on:mouseup=on_mouseup,
                 placeholder=":e name  to open a note")
-            section(r#ref=preview_ref, class="preview", on:click=on_preview_click)
+            div(class="right") {
+                section(r#ref=preview_ref, class="preview", on:click=on_preview_click)
+                div(class="backlinks") {
+                    div(class="backlinks-title") {
+                        (move || format!("Linked mentions ({})", backlinks.with(Vec::len)))
+                    }
+                    ul {
+                        Indexed(list=backlinks, view=move |n| {
+                            let n2 = n.clone();
+                            view! { li(on:click=move |_| open(n2.clone())) { (n) } }
+                        })
+                    }
+                }
+            }
         }
         footer(class="statusline") {
             span(class="mode") { (mode_label) }
