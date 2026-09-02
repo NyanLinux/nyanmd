@@ -3,7 +3,6 @@ name = "nyanmd-ui"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 sycamore = { version = "0.9", features = ["suspense"] }
 wasm-bindgen = "0.2"
@@ -11,6 +10,8 @@ wasm-bindgen-futures = "0.4"
 serde-wasm-bindgen = "0.6"
 serde = { version = "1", features = ["derive"] }
 console_error_panic_hook = "0.1.7"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+web-sys = { version = "0.3", features = ["HtmlTextAreaElement", "HtmlInputElement", "HtmlElement"] }
 
 [workspace]
 members = ["src-tauri"]

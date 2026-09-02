@@ -1,7 +1,29 @@
 # nyanmd
 
-A markdown editor built with Tauri + Sycamore.
+Vim-style markdown notes app. Tauri 2 + Sycamore (Rust, no npm).
 
-## Recommended IDE Setup
+Notes live in `~/nyanmd/**/*.md`. Left: file list. Middle: editor. Right: live preview.
 
-[VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+## Keys
+
+| key | action |
+|-----|--------|
+| `h j k l` `w b` `0 $` `gg G` | move |
+| `i a A I o O` | enter insert mode |
+| `x` `dd` `u` | delete char / line, undo |
+| `Esc` | back to normal mode |
+| `:e name` | open or create `name.md` |
+| `:w` `:q` `:wq` | save / close / both |
+
+## Run
+
+```sh
+rustup target add wasm32-unknown-unknown
+brew install trunk          # or: cargo install trunk
+cargo install tauri-cli --version '^2' --locked
+cargo tauri dev
+```
+
+Without the tauri CLI: `trunk serve` in one terminal, `cargo run -p nyanmd` in another.
+
+Tests for the vim engine: `cargo test -p nyanmd-ui`.

@@ -1,4 +1,5 @@
 mod app;
+mod vim;
 
 use app::App;
 
